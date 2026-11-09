@@ -1,0 +1,11 @@
+/build/
+/dist/
+*.obj
+*.res
+*.exe
+*.pdb
+*.ilk
+/data/
+*-result.json
+*-report.json
+.vs/

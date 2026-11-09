@@ -1,0 +1,49 @@
+name: Windows build and installer
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Build native executable
+        shell: cmd
+        run: build.cmd
+      - name: Run simulated adapter tests
+        shell: pwsh
+        run: |
+          $report = Join-Path $PWD 'build\tests.json'
+          $test = Start-Process '.\build\NetSwitch.exe' -ArgumentList @('--self-test',('"'+$report+'"')) -PassThru -Wait
+          Get-Content -LiteralPath $report
+          if ($test.ExitCode -ne 0) { throw 'Simulated adapter tests failed.' }
+      - name: Prepare verified Inno Setup compiler
+        shell: pwsh
+        run: |
+          .\scripts\bootstrap-inno.ps1
+      - name: Compile Windows installer
+        shell: pwsh
+        run: |
+          .\scripts\build-installer.ps1 -IsccPath (Join-Path $PWD 'build\tools\inno\ISCC.exe')
+      - name: Test installation and uninstall without switching adapters
+        shell: pwsh
+        run: |
+          .\scripts\installer-smoke.ps1
+      - name: Upload installer and test results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: NetSwitch-Windows-x64
+          path: |
+            dist/*.exe
+            build/NetSwitch.exe
+            build/tests.json
+            build/smoke/*
+          if-no-files-found: error
+          retention-days: 7
